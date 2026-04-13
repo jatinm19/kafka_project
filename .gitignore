@@ -1,0 +1,12 @@
+# Binaries
+producer
+sorter
+
+# OS files
+.DS_Store
+
+# Docker
+*.log
+
+# Go
+vendor/
