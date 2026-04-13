@@ -1,5 +1,3 @@
-# Kafka Data Pipeline (Golang)
-
 ## Overview
 This project implements a data generation and processing pipeline using Golang and Kafka.
 
@@ -14,7 +12,7 @@ This project implements a data generation and processing pipeline using Golang a
 - Dockerized setup
 
 ## Architecture
-Producer → Kafka → Sorter → Chunk Files
+Producer -> Kafka -> Sorter -> Chunk Files
 
 ## Run Instructions
 
@@ -48,3 +46,11 @@ Sorted chunk files:
 - Handles large datasets using chunk-based sorting
 - Memory efficient (<2GB)
 - Parallelizable design
+
+## How to run
+docker-compose build --no-cache 
+docker-compose up -d
+docker exec -it my_project-app-1 ./producer
+docker exec -it my_project-app-1 ./sorter
+docker exec -it my_project-app-1 ls
+docker exec -it my_project-app-1 head chunk_id_0.txt
