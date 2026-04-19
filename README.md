@@ -1,56 +1,54 @@
-## Overview
-This project implements a data generation and processing pipeline using Golang and Kafka.
+# Kafka Pipeline Project (Golang + Kafka + Docker)
 
-## Features
-- Generate CSV data (id, name, address, continent)
-- Produce data to Kafka topic: `source`
-- Consume and sort data by:
-  - ID (numerical)
-  - Name (alphabetical)
-  - Continent (alphabetical)
-- Chunk-based sorting for memory efficiency
-- Dockerized setup
+A production-style data pipeline built using **Golang**, **Apache Kafka**, and **Docker Compose**.
 
-## Architecture
-Producer -> Kafka -> Sorter -> Chunk Files
+This project generates large datasets, pushes them to Kafka, consumes the data, sorts records based on multiple keys, and republishes the sorted output into separate Kafka topics.
 
-## Run Instructions
+---
 
-### Start services
-docker-compose up -d
+# Tech Stack
 
-### Wait for Kafka (30 sec)
-sleep 30
+- **Golang** – Core application logic
+- **Apache Kafka** – Message streaming platform
+- **Zookeeper** – Kafka dependency (single-node setup)
+- **Docker Compose** – Container orchestration
+- **Kafka-Go** (`segmentio/kafka-go`) – Kafka client library for Go
 
-### Create topic
-docker exec -it my_project-kafka-1 kafka-topics \
---create \
---topic source \
---bootstrap-server kafka:9092 \
---partitions 1 \
---replication-factor 1
+---
 
-### Run producer
+# Project Architecture
+
+```text
+Producer (Go Workers)
+        ↓
+   Kafka Topic: source
+        ↓
+Sorter Consumer (Go)
+        ↓
+ ┌───────────────┬───────────────┬────────────────┐
+ ↓               ↓               ↓
+Topic: id     Topic: name   Topic: continent
+(sorted)      (sorted)      (sorted)
+
+
+kafka_project/
+│── cmd/
+│   ├── producer/        # Kafka producer (worker mode)
+│   └── sorter/          # Kafka consumer + sorting pipeline
+│
+│── internal/
+│   ├── kafkautil/       # Kafka readers/writers
+│   ├── sorter/          # Sorting logic
+│   └── model/           # Record struct
+│
+│── docker-compose.yml
+│── Dockerfile
+│── go.mod
+│── README.md
+
+
+# How to Run
+docker compose down -v
+docker compose up -d --build
 docker exec -it my_project-app-1 ./producer
-
-### Run sorter
 docker exec -it my_project-app-1 ./sorter
-
-## Output
-Sorted chunk files:
-- chunk_id_*.txt
-- chunk_name_*.txt
-- chunk_continent_*.txt
-
-## Performance
-- Handles large datasets using chunk-based sorting
-- Memory efficient (<2GB)
-- Parallelizable design
-
-## How to run
-docker-compose build --no-cache 
-docker-compose up -d
-docker exec -it my_project-app-1 ./producer
-docker exec -it my_project-app-1 ./sorter
-docker exec -it my_project-app-1 ls
-docker exec -it my_project-app-1 head chunk_id_0.txt
