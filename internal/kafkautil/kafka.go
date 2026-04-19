@@ -3,34 +3,36 @@ package kafkautil
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/segmentio/kafka-go"
 )
 
+var (
+	writers = map[string]*kafka.Writer{}
+	mu      sync.Mutex
+)
+
 func NewWriter(topic string) *kafka.Writer {
-	return &kafka.Writer{
-		Addr:     kafka.TCP("kafka:9092"),
-		Topic:    topic,
-		Balancer: &kafka.LeastBytes{},
+	mu.Lock()
+	defer mu.Unlock()
+
+	if w, ok := writers[topic]; ok {
+		return w
 	}
+
+	w := &kafka.Writer{
+		Addr:      kafka.TCP("kafka:9092"),
+		Topic:     topic,
+		BatchSize: 1000,
+	}
+	writers[topic] = w
+	return w
 }
 
-var writers = map[string]*kafka.Writer{}
-
-func Publish(topic string, msg string) error {
-	w, ok := writers[topic]
-
-	if !ok {
-		w = NewWriter(topic)
-		writers[topic] = w
-	}
-
-	return w.WriteMessages(
-		context.Background(),
-		kafka.Message{
-			Value: []byte(msg),
-		},
-	)
+func Publish(topic, msg string) error {
+	w := NewWriter(topic)
+	return w.WriteMessages(context.Background(), kafka.Message{Value: []byte(msg)})
 }
 
 func CloseWriters() {
@@ -45,8 +47,6 @@ func NewReader(topic, group string) *kafka.Reader {
 		Topic:       topic,
 		GroupID:     group,
 		StartOffset: kafka.FirstOffset,
-		MinBytes:    1,
-		MaxBytes:    10e6,
 	})
 }
 

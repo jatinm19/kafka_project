@@ -1,9 +1,62 @@
-# Kafka Pipeline Project (Golang + Kafka + Docker)
+# How to run 
+docker compose up -d --build
+docker exec -it my_project-app-1 ./producer
+docker exec -it my_project-app-1 ./sorter
 
-A production-style data pipeline built using **Golang**, **Apache Kafka**, and **Docker Compose**.
+# check results
+docker exec -it my_project-kafka-1 kafka-console-consumer \
+--bootstrap-server kafka:9092 \
+--topic id \
+--from-beginning \
+--max-messages 10
 
-This project generates large datasets, pushes them to Kafka, consumes the data, sorts records based on multiple keys, and republishes the sorted output into separate Kafka topics.
+docker exec -it my_project-kafka-1 kafka-console-consumer \
+--bootstrap-server kafka:9092 \
+--topic name \
+--from-beginning \
+--max-messages 10
 
+docker exec -it my_project-kafka-1 kafka-console-consumer \
+--bootstrap-server kafka:9092 \
+--topic continent \
+--from-beginning \
+--max-messages 10
+
+# Test cases
+docker exec -it my_project-app-1 go test ./internal/tests -run TestSort
+docker exec -it my_project-app-1 go test ./internal/tests -run TestRecord
+docker exec -it my_project-app-1 go test ./... -v
+
+# data flow
+Producer (Multi-worker)
+        │
+        ▼
+Kafka Topic: source
+        │
+        ▼
+Sorter (Consumer Group)
+        │
+        ├── Sort by ID        → topic: id
+        ├── Sort by Name      → topic: name
+        └── Sort by Continent → topic: continent
+        │
+        ▼
+External Merge Sort Output (files)
+
+# Project Structure
+cmd/
+  producer/     → Data generator (worker-based)
+  sorter/       → Kafka consumer + sorting pipeline
+
+internal/
+  model/        → Data structures
+  kafkautil/    → Kafka producer/consumer helpers
+  sorter/       → Sorting logic (chunk-based)
+  merge/        → External k-way merge sort
+  tests/        → Unit tests
+
+docker-compose.yml
+Dockerfile
 ---
 
 # Tech Stack
@@ -13,42 +66,3 @@ This project generates large datasets, pushes them to Kafka, consumes the data, 
 - **Zookeeper** – Kafka dependency (single-node setup)
 - **Docker Compose** – Container orchestration
 - **Kafka-Go** (`segmentio/kafka-go`) – Kafka client library for Go
-
----
-
-# Project Architecture
-
-```text
-Producer (Go Workers)
-        ↓
-   Kafka Topic: source
-        ↓
-Sorter Consumer (Go)
-        ↓
- ┌───────────────┬───────────────┬────────────────┐
- ↓               ↓               ↓
-Topic: id     Topic: name   Topic: continent
-(sorted)      (sorted)      (sorted)
-
-
-kafka_project/
-│── cmd/
-│   ├── producer/        # Kafka producer (worker mode)
-│   └── sorter/          # Kafka consumer + sorting pipeline
-│
-│── internal/
-│   ├── kafkautil/       # Kafka readers/writers
-│   ├── sorter/          # Sorting logic
-│   └── model/           # Record struct
-│
-│── docker-compose.yml
-│── Dockerfile
-│── go.mod
-│── README.md
-
-
-# How to Run
-docker compose down -v
-docker compose up -d --build
-docker exec -it my_project-app-1 ./producer
-docker exec -it my_project-app-1 ./sorter
