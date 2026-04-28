@@ -22,9 +22,11 @@ func NewWriter(topic string) *kafka.Writer {
 	}
 
 	w := &kafka.Writer{
-		Addr:      kafka.TCP("kafka:9092"),
-		Topic:     topic,
-		BatchSize: 1000,
+		Addr:         kafka.TCP("kafka:9092"),
+		Topic:        topic,
+		BatchSize:    1000,
+		BatchTimeout: 500000000, // 500ms
+		RequiredAcks: 1,
 	}
 	writers[topic] = w
 	return w
@@ -36,6 +38,8 @@ func Publish(topic, msg string) error {
 }
 
 func CloseWriters() {
+	mu.Lock()
+	defer mu.Unlock()
 	for _, w := range writers {
 		w.Close()
 	}
@@ -43,10 +47,13 @@ func CloseWriters() {
 
 func NewReader(topic, group string) *kafka.Reader {
 	return kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     []string{"kafka:9092"},
-		Topic:       topic,
-		GroupID:     group,
-		StartOffset: kafka.FirstOffset,
+		Brokers:        []string{"kafka:9092"},
+		Topic:          topic,
+		GroupID:        group,
+		StartOffset:    kafka.FirstOffset,
+		CommitInterval: 0,
+		MinBytes:       1,
+		MaxBytes:       10e6,
 	})
 }
 

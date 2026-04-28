@@ -3,26 +3,56 @@ package merge
 import (
 	"bufio"
 	"container/heap"
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+
+	"kafka-pipeline/internal/kafkautil"
 )
 
 type Item struct {
 	value   string
 	file    *os.File
 	scanner *bufio.Scanner
+	mode    string
 }
 
 type MinHeap []*Item
 
 func (h MinHeap) Len() int { return len(h) }
+
 func (h MinHeap) Less(i, j int) bool {
+	a := strings.Split(h[i].value, ",")
+	b := strings.Split(h[j].value, ",")
+
+	switch h[i].mode {
+
+	case "id":
+		x, _ := strconv.Atoi(a[0])
+		y, _ := strconv.Atoi(b[0])
+		return x < y
+
+	case "name":
+		return strings.ToLower(a[1]) <
+			strings.ToLower(b[1])
+
+	case "continent":
+		return strings.ToLower(a[3]) <
+			strings.ToLower(b[3])
+	}
+
 	return h[i].value < h[j].value
 }
-func (h MinHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
-func (h *MinHeap) Push(x any) { *h = append(*h, x.(*Item)) }
+func (h MinHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
+
+func (h *MinHeap) Push(x any) {
+	*h = append(*h, x.(*Item))
+}
+
 func (h *MinHeap) Pop() any {
 	old := *h
 	n := len(old)
@@ -32,19 +62,25 @@ func (h *MinHeap) Pop() any {
 }
 
 func RunAllMerges() {
-	mergeFiles("tmp/id.chunk", "output/id_sorted.txt")
-	mergeFiles("tmp/name.chunk", "output/name_sorted.txt")
-	mergeFiles("tmp/continent.chunk", "output/continent_sorted.txt")
+	mergeAndPublish("tmp/id_*.chunk", "id", "id")
+	mergeAndPublish("tmp/name_*.chunk", "name", "name")
+	mergeAndPublish("tmp/continent_*.chunk", "continent", "continent")
+
+	kafkautil.CloseWriters()
 }
 
-func mergeFiles(pattern string, output string) {
+func mergeAndPublish(pattern, topic, mode string) {
 	files, _ := filepath.Glob(pattern)
 
 	h := &MinHeap{}
 	heap.Init(h)
 
-	for _, f := range files {
-		file, _ := os.Open(f)
+	for _, path := range files {
+		file, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+
 		scanner := bufio.NewScanner(file)
 
 		if scanner.Scan() {
@@ -52,20 +88,17 @@ func mergeFiles(pattern string, output string) {
 				value:   scanner.Text(),
 				file:    file,
 				scanner: scanner,
+				mode:    mode,
 			})
+		} else {
+			file.Close()
 		}
 	}
 
-	os.MkdirAll("output", 0755)
-	out, _ := os.Create(output)
-	defer out.Close()
-
-	w := bufio.NewWriter(out)
-	defer w.Flush()
-
 	for h.Len() > 0 {
 		item := heap.Pop(h).(*Item)
-		fmt.Fprintln(w, item.value)
+
+		_ = kafkautil.Publish(topic, item.value)
 
 		if item.scanner.Scan() {
 			item.value = item.scanner.Text()

@@ -66,3 +66,9 @@ Dockerfile
 - **Zookeeper** – Kafka dependency (single-node setup)
 - **Docker Compose** – Container orchestration
 - **Kafka-Go** (`segmentio/kafka-go`) – Kafka client library for Go
+
+
+Producer Terminal Output
+![alt text](image.png) : Producer
+![alt text](image-1.png) :  Sorter
+
